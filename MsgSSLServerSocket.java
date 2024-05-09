@@ -49,7 +49,7 @@ public class MsgSSLServerSocket {
 			System.out.println("Tabla users creada exitosamente.");
 
 			statement.executeUpdate("drop table if exists orders");
-			statement.executeUpdate("create table orders (numCliente string, numCamas number, numMesas number, numSillas number, numSillones number, fecha date default current_date, verificado number default 0)");
+			statement.executeUpdate("create table orders (numCliente string, numCamas number, numMesas number, numSillas number, numSillones number, fecha datetime default current_timestamp, verificado number default 0)");
 			System.out.println("Tabla orders creada exitosamente.");
 
 		} catch (SQLException e) {
@@ -135,7 +135,7 @@ public class MsgSSLServerSocket {
 					Signature sg = Signature.getInstance("SHA256withRSA");
 					sg.initVerify(publicKey);
 					sg.update(msg.getBytes());
-					if (statement.executeQuery("SELECT COUNT(*) FROM orders WHERE numCliente = '" + numCliente.trim() + "' AND fecha >= datetime('now', '-4 hours')").getInt(1) > 3) {
+					if (statement.executeQuery("SELECT COUNT(*) FROM orders WHERE numCliente = '" + numCliente.trim() + "' AND fecha >= datetime('now', '-4 hours')").getInt(1) >= 3) {
 						return false;
 					} else {
 						return sg.verify(firmaBytes);
@@ -173,7 +173,7 @@ public class MsgSSLServerSocket {
                 SSLSocket socket = (SSLSocket) serverSocket.accept();
 
                 try (BufferedReader input = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-                     PrintWriter output = new PrintWriter(new OutputStreamWriter(socket.getOutputStream()))) {
+					PrintWriter output = new PrintWriter(new OutputStreamWriter(socket.getOutputStream()))) {
 
                     String msg = input.readLine();
                     String[] parts = msg.split(";");
@@ -192,7 +192,7 @@ public class MsgSSLServerSocket {
 							insertTransaction(conn, numCliente, numCamas, numMesas, numSillas, numSillones, 1);
 							output.println("Transaccion OK");
 						} else {
-							output.println("Transaccion INCORRECTA. Firma incorrecta o mas de 3 transacciones en las ultimas 4 horas");
+							output.println("Transaccion INCORRECTA. Firma incorrecta o mas de 3 transacciones en las ultimas 4h");
 							insertTransaction(conn, numCliente, numCamas, numMesas, numSillas, numSillones, 0);
 						}
 					}else{
