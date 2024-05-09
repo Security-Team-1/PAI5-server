@@ -21,7 +21,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
-
+import java.util.Arrays;
 import java.util.Base64;
 
 import javax.net.ssl.SSLServerSocket;
@@ -49,7 +49,7 @@ public class MsgSSLServerSocket {
 			System.out.println("Tabla users creada exitosamente.");
 
 			statement.executeUpdate("drop table if exists orders");
-			statement.executeUpdate("create table orders (numCliente number, numCamas number, numMesas number, numSillas number, numSillones number, fecha date default current_date, verificado number default 0)");
+			statement.executeUpdate("create table orders (numCliente string, numCamas number, numMesas number, numSillas number, numSillones number, fecha date default current_date, verificado number default 0)");
 			System.out.println("Tabla orders creada exitosamente.");
 
 		} catch (SQLException e) {
@@ -97,25 +97,6 @@ public class MsgSSLServerSocket {
 	private static void populateDatabase(Connection conn) {
 
 		try {
-			for (int i = 1; i <= 10; i++) {
-
-				String publicKeyStr = null;
-				KeyPairGenerator keyPairGenerator;
-
-				try {
-					keyPairGenerator = KeyPairGenerator.getInstance("RSA");
-					keyPairGenerator.initialize(2048);
-					KeyPair keyPair = keyPairGenerator.generateKeyPair();
-					PublicKey publicKey = keyPair.getPublic();
-					publicKeyStr = Base64.getEncoder().encodeToString(publicKey.getEncoded());
-
-				} catch (NoSuchAlgorithmException e) {
-					e.printStackTrace();
-				}
-
-				insertUser(conn, "user" + i, publicKeyStr);
-			}
-
 			insertUser(conn, "userPrueba", "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAnxlQhNqnfjc2mqnFkQS++5PmNykB+kZXLa9W2v8rOXeDuss0HmPvfQXpYUEpj3z4I273DpZ3a2R7LIN69IrSJLdstnTlkMpNH9u0Zho2RdidpYsrZV731UHMdkov90/9ixhZwNqLwwwviFw+eaSkIHI0PyR80esnpOkvBC7PeFG0xLKVeu+bACEs2VBqY0241n9rAwb5GZdWk91Fh03Kh7KEsyE7+w2n3yR9qbznC8eUfKh2YTihCnUKXvAWDxzeTpMoOhG1/LwF1W8+1BCwgvQRxderxLJev0dohENbRYhc19m2e1okZtCNdrYZZ42um3Ql9ecHaNl3OfBWBbQfeQIDAQAB");
 
 			Statement statement = conn.createStatement();
@@ -130,8 +111,8 @@ public class MsgSSLServerSocket {
 
 		try {
 			Statement statement = conn.createStatement();
-			String publicKeyStr = statement.executeQuery("SELECT clavePublica FROM users WHERE numCliente = '" + numCliente.trim()).getString(0);
-			
+			String publicKeyStr = statement.executeQuery("SELECT clavePublica FROM users WHERE numCliente = '" + numCliente + "'").getString(1);
+
 			if (publicKeyStr == null) { 
 				return false;
 			
@@ -140,7 +121,15 @@ public class MsgSSLServerSocket {
 				byte[] publicKeyBytes = Base64.getDecoder().decode(publicKeyStr);
 				KeyFactory keyFactory = KeyFactory.getInstance("RSA");
 				PublicKey publicKey;
-				
+
+				String firmaStr = firma.replace("[", "").replace("]", "").replace("\r", "");
+				String[] firmaArray = firmaStr.split(",");
+				byte[] firmaBytes = new byte[firmaArray.length];
+		
+				for (int i = 0; i < firmaArray.length; i++) {
+					firmaBytes[i] = Byte.parseByte(firmaArray[i].trim());
+				}
+
 				try {
 					publicKey = keyFactory.generatePublic(new X509EncodedKeySpec(publicKeyBytes));
 					Signature sg = Signature.getInstance("SHA256withRSA");
@@ -148,8 +137,8 @@ public class MsgSSLServerSocket {
 					sg.update(msg.getBytes());
 					if (statement.executeQuery("SELECT COUNT(*) FROM orders WHERE numCliente = '" + numCliente.trim() + "' AND fecha >= datetime('now', '-4 hours')").getInt(1) > 3) {
 						return false;
-					}else{
-						return sg.verify(firma.getBytes());
+					} else {
+						return sg.verify(firmaBytes);
 					}
 
 				} catch (InvalidKeySpecException e) {
@@ -187,24 +176,27 @@ public class MsgSSLServerSocket {
                      PrintWriter output = new PrintWriter(new OutputStreamWriter(socket.getOutputStream()))) {
 
                     String msg = input.readLine();
-                    String[] parts = msg.split(",");
+                    String[] parts = msg.split(";");
 
                     String numCliente = parts[0].trim();
                     Integer numCamas = Integer.parseInt(parts[1].trim());
                     Integer numMesas = Integer.parseInt(parts[2].trim());
                     Integer numSillas = Integer.parseInt(parts[3].trim());
                     Integer numSillones = Integer.parseInt(parts[4].trim());
+
+					String originalMsg = numCliente + ";" + numCamas + ";" + numMesas + ";" + numSillas + ";" + numSillones;
                     String firma = parts[5].trim();
-					if (numCamas >= 0 && numCamas <=300 && numMesas >= 0 && numMesas <=300 && numSillas >= 0 && numSillas <=300 && numSillones >= 0 && numSillones <=300){
-						if (verifySignature(conn, msg, numCliente, firma)) {
+
+					if (numCamas >= 0 && numCamas <= 300 && numMesas >= 0 && numMesas <= 300 && numSillas >= 0 && numSillas <= 300 && numSillones >= 0 && numSillones <=300){
+						if (verifySignature(conn, originalMsg, numCliente, firma)) {
 							insertTransaction(conn, numCliente, numCamas, numMesas, numSillas, numSillones, 1);
-							output.println("Transaccion exitosa. El mensaje ha sido almacenado en el servidor");
+							output.println("Transaccion OK");
 						} else {
-							output.println("Transaccion repetida.");
+							output.println("Transaccion INCORRECTA. Firma incorrecta o mas de 3 transacciones en las ultimas 4 horas");
 							insertTransaction(conn, numCliente, numCamas, numMesas, numSillas, numSillones, 0);
 						}
 					}else{
-						output.println("Transaccion invalida.");
+						output.println("Transaccion INCORRECTA");
 						insertTransaction(conn, numCliente, numCamas, numMesas, numSillas, numSillones, 0);
 					}
 
