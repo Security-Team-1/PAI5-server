@@ -143,8 +143,12 @@ public class MsgSSLServerSocket {
 					Signature sg = Signature.getInstance("SHA256withRSA");
 					sg.initVerify(publicKey);
 					sg.update(msg.getBytes());
-					return sg.verify(firma.getBytes());
-				
+					if (statement.executeQuery("SELECT COUNT(*) FROM orders WHERE numCliente = '" + numCliente.trim() + "' AND fecha >= datetime('now', '-4 hours')").getInt(1) > 3) {
+						return false;
+					}else{
+						return sg.verify(firma.getBytes());
+					}
+
 				} catch (InvalidKeySpecException e) {
 					e.printStackTrace();
 					return false;
@@ -188,14 +192,18 @@ public class MsgSSLServerSocket {
                     Integer numSillas = Integer.parseInt(parts[3].trim());
                     Integer numSillones = Integer.parseInt(parts[4].trim());
                     String firma = parts[5].trim();
-
-                    if (verifySignature(conn, msg, numCliente, firma)) {
-                        insertTransaction(conn, numCliente, numCamas, numMesas, numSillas, numSillones, 1);
-                        output.println("Transaccion exitosa. El mensaje ha sido almacenado en el servidor");
-                    } else {
-                        output.println("Transaccion repetida. El mensaje NO ha sido almacenado en el servidor");
+					if (numCamas >= 0 && numCamas <=300 && numMesas >= 0 && numMesas <=300 && numSillas >= 0 && numSillas <=300 && numSillones >= 0 && numSillones <=300){
+						if (verifySignature(conn, msg, numCliente, firma)) {
+							insertTransaction(conn, numCliente, numCamas, numMesas, numSillas, numSillones, 1);
+							output.println("Transaccion exitosa. El mensaje ha sido almacenado en el servidor");
+						} else {
+							output.println("Transaccion repetida.");
+							insertTransaction(conn, numCliente, numCamas, numMesas, numSillas, numSillones, 0);
+						}
+					}else{
+						output.println("Transaccion invalida.");
 						insertTransaction(conn, numCliente, numCamas, numMesas, numSillas, numSillones, 0);
-                    }
+					}
 
                 } catch (IOException e) {
                     e.printStackTrace();
