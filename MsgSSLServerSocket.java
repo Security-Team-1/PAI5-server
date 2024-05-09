@@ -115,6 +115,9 @@ public class MsgSSLServerSocket {
 
 				insertUser(conn, "user" + i, publicKeyStr);
 			}
+
+			insertUser(conn, "userPrueba", "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAnxlQhNqnfjc2mqnFkQS++5PmNykB+kZXLa9W2v8rOXeDuss0HmPvfQXpYUEpj3z4I273DpZ3a2R7LIN69IrSJLdstnTlkMpNH9u0Zho2RdidpYsrZV731UHMdkov90/9ixhZwNqLwwwviFw+eaSkIHI0PyR80esnpOkvBC7PeFG0xLKVeu+bACEs2VBqY0241n9rAwb5GZdWk91Fh03Kh7KEsyE7+w2n3yR9qbznC8eUfKh2YTihCnUKXvAWDxzeTpMoOhG1/LwF1W8+1BCwgvQRxderxLJev0dohENbRYhc19m2e1okZtCNdrYZZ42um3Ql9ecHaNl3OfBWBbQfeQIDAQAB");
+
 			Statement statement = conn.createStatement();
 			ResultSet rs = statement.executeQuery("SELECT COUNT(*) FROM users");
 			System.out.println("Tabla de usuarios poblada exitosamente con " + rs.getInt(1) + " usuarios.");
